@@ -17,7 +17,8 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json --runInBand --detectOpenHandles"
+    "test:e2e": "jest --config ./test/jest-e2e.json --runInBand --detectOpenHandles",
+    "generate-asyncapi": "node scripts/generate-asyncapi-docs.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
@@ -25,6 +26,7 @@
     "@nestjs/core": "^11.0.1",
     "@nestjs/platform-express": "^11.0.1",
     "@nestjs/platform-socket.io": "^11.0.12",
+    "@nestjs/serve-static": "^5.0.3",
     "@nestjs/swagger": "^11.1.0",
     "@nestjs/typeorm": "^11.0.0",
     "@nestjs/websockets": "^11.0.12",
@@ -36,6 +38,8 @@
     "typeorm": "^0.3.21"
   },
   "devDependencies": {
+    "@asyncapi/generator": "^2.6.0",
+    "@asyncapi/html-template": "^3.0.0",
     "@eslint/eslintrc": "^3.2.0",
     "@eslint/js": "^9.18.0",
     "@nestjs/cli": "^11.0.0",

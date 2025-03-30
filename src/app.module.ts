@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { PaymentsModule } from './payments/payments.module';
 import { MerchantsModule } from './merchants/merchants.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { AsyncApiModule } from './asyncapi/asyncapi.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     }),
     PaymentsModule,
     MerchantsModule,
+    AsyncApiModule,
   ],
 })
 export class AppModule {}

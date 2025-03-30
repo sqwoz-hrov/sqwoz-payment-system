@@ -1,0 +1,134 @@
+asyncapi: 2.6.0
+info:
+  title: Payments System API
+  version: 1.0.0
+  description: |
+    This API allows merchants to receive real-time updates about payment and refund status changes.
+    It provides WebSocket notifications for payment processing status and refund processing status.
+  
+servers:
+  production:
+    url: wss://api.example.com/payments
+    protocol: wss
+    description: Production server
+  
+channels:
+  /merchant/{merchantId}:
+    parameters:
+      merchantId:
+        description: The unique identifier of the merchant
+        schema:
+          type: string
+          format: uuid
+    subscribe:
+      summary: Receive payment and refund updates
+      description: |
+        Subscribe to this channel to receive real-time updates about payments and refunds for your merchant account.
+        You will receive notifications when a payment status changes or a refund status is updated.
+      operationId: receivePaymentAndRefundUpdates
+      message:
+        oneOf:
+          - $ref: '#/components/messages/paymentUpdate'
+          - $ref: '#/components/messages/refundUpdate'
+
+components:
+  messages:
+    paymentUpdate:
+      name: paymentUpdate
+      title: Payment Update
+      summary: Message with payment status update
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/PaymentUpdatePayload'
+    
+    refundUpdate:
+      name: refundUpdate
+      title: Refund Update
+      summary: Message with refund status update
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/RefundUpdatePayload'
+  
+  schemas:
+    PaymentUpdatePayload:
+      type: object
+      required:
+        - type
+        - paymentId
+        - status
+      properties:
+        type:
+          type: string
+          enum: [PAYMENT_UPDATE]
+          description: The type of the event
+        paymentId:
+          type: string
+          format: uuid
+          description: The unique identifier of the payment
+        status:
+          $ref: '#/components/schemas/PaymentStatus'
+        errorReason:
+          $ref: '#/components/schemas/PaymentErrorReason'
+    
+    RefundUpdatePayload:
+      type: object
+      required:
+        - type
+        - refundId
+        - paymentId
+        - status
+      properties:
+        type:
+          type: string
+          enum: [REFUND_UPDATE]
+          description: The type of the event
+        refundId:
+          type: string
+          format: uuid
+          description: The unique identifier of the refund
+        paymentId:
+          type: string
+          format: uuid
+          description: The unique identifier of the original payment
+        status:
+          $ref: '#/components/schemas/RefundStatus'
+    
+    PaymentStatus:
+      type: string
+      enum:
+        - PROCESSING
+        - SUCCESSFUL
+        - FAILED
+      description: |
+        The status of a payment:
+        * `PROCESSING` - The payment is being processed
+        * `SUCCESSFUL` - The payment was completed successfully
+        * `FAILED` - The payment failed to process
+    
+    PaymentErrorReason:
+      type: string
+      enum:
+        - NONE
+        - INSUFFICIENT_BALANCE
+        - INCORRECT_CARD_DETAILS
+        - CARD_EXPIRED
+      description: |
+        The reason for a payment failure:
+        * `NONE` - No error occurred (for successful payments)
+        * `INSUFFICIENT_BALANCE` - The card has insufficient balance
+        * `INCORRECT_CARD_DETAILS` - The card details provided are incorrect
+        * `CARD_EXPIRED` - The card has expired
+    
+    RefundStatus:
+      type: string
+      enum:
+        - PROCESSING
+        - SUCCESSFUL
+        - FAILED
+        - CANCELLED
+      description: |
+        The status of a refund:
+        * `PROCESSING` - The refund is being processed
+        * `SUCCESSFUL` - The refund was completed successfully
+        * `FAILED` - The refund failed to process
+        * `CANCELLED` - The refund was cancelled during processing
