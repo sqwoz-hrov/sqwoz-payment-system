@@ -33,7 +33,7 @@ services:
     expose:
       - "$PORT:1336"
     depends_on:
-      - feedback-hr-slayer-postgres
+      - fakepay-postgres
     networks:
       - ${TRAEFIK_NETWORK}
       - fakepay-db
