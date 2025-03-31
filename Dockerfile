@@ -30,4 +30,4 @@ COPY --from=builder /app/node_modules ./node_modules
 EXPOSE $APP_PORT
 
 # Start the application
-CMD ["NODE_ENV=production", "node", "dist/main"]
+CMD ["NODE_ENV=production node", "dist/main"]
