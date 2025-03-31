@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:latest
+    container_name: fakepay-postgres
+    restart: always
+    env_file:
+      - .env
+    expose:
+      - "${POSTGRES_PORT}:${DB_PORT}"
+    volumes:
+      - fakepay_db_data:/var/lib/postgresql/data
+    networks:
+      - fakepay-db
+
+volumes:
+  fakepay_db_data:
+
+networks:
+  fakepay-db:
+    driver: bridge

@@ -15,11 +15,11 @@ import { AsyncApiModule } from './asyncapi/asyncapi.module';
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
         type: 'postgres',
-        host: configService.get('DB_HOST', 'localhost'),
-        port: configService.get<number>('DB_PORT', 5432),
-        username: configService.get('DB_USERNAME', 'postgres'),
-        password: configService.get('DB_PASSWORD', 'postgres'),
-        database: configService.get('DB_DATABASE', 'payment_system'),
+        host: configService.getOrThrow('DB_HOST', 'localhost'),
+        port: configService.getOrThrow<number>('DB_PORT', 5432),
+        username: configService.getOrThrow('DB_USERNAME', 'postgres'),
+        password: configService.getOrThrow('DB_PASSWORD', 'postgres'),
+        database: configService.getOrThrow('DB_DATABASE', 'payment_system'),
         entities: [__dirname + '/**/*.entity{.ts,.js}'],
         synchronize: configService.get<boolean>('DB_SYNC', false), // Should be false in production
       }),

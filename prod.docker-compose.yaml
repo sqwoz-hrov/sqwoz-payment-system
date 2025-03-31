@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:latest
+    container_name: fakepay-postgres
+    restart: always
+    env_file:
+      - .env
+    expose:
+      - "${POSTGRES_PORT}:${DB_PORT}"
+    volumes:
+      - fakepay_db_data:/var/lib/postgresql/data
+    networks:
+      - fakepay-db
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - APP_PORT=$PORT
+    container_name: fakepay-api
+    restart: always
+    env_file:
+      - .env
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.feedback-bot.rule=PathPrefix(`/payments`)"
+      - "traefik.http.routers.feedback-bot.entrypoints=websecure"
+      - "traefik.http.routers.feedback-bot.tls=true"
+      - "traefik.http.services.feedback-bot.loadbalancer.server.port=1336"
+    expose:
+      - "$PORT:1336"
+    depends_on:
+      - feedback-hr-slayer-postgres
+    networks:
+      - ${TRAEFIK_NETWORK}
+      - fakepay-db
+
+volumes:
+  fakepay_db_data:
+
+networks:
+  ${TRAEFIK_NETWORK}:
+    external: true
+  fakepay-db:
+    driver: bridge
