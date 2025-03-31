@@ -35,14 +35,15 @@ services:
     depends_on:
       - fakepay-postgres
     networks:
-      - ${TRAEFIK_NETWORK}
+      - traefik
       - fakepay-db
 
 volumes:
   fakepay_db_data:
 
 networks:
-  ${TRAEFIK_NETWORK}:
+  traefik:
     external: true
+    name: $TRAEFIK_NETWORK
   fakepay-db:
     driver: bridge
