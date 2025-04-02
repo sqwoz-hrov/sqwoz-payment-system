@@ -1,3 +1,4 @@
+import { ApiProperty } from '@nestjs/swagger';
 import {
   IsNotEmpty,
   IsNumber,
@@ -7,32 +8,60 @@ import {
 } from 'class-validator';
 
 export class CreatePaymentDto {
+  @ApiProperty({
+    description: 'Merchant identifier',
+    example: 'merchant_123',
+  })
   @IsNotEmpty()
   @IsString()
   merchantId: string;
 
+  @ApiProperty({
+    description: 'Merchant secret key',
+    example: 'secret_key_abc',
+  })
   @IsNotEmpty()
   @IsString()
   merchantKey: string;
 
+  @ApiProperty({
+    description: 'Payment amount',
+    example: 1000,
+  })
   @IsNotEmpty()
   @IsNumber()
   amount: number;
 
+  @ApiProperty({
+    description: 'Card number (16 to 19 digits)',
+    example: '4111111111111111',
+  })
   @IsNotEmpty()
   @IsString()
   @MinLength(16)
   @MaxLength(19)
   cardNumber: string;
 
+  @ApiProperty({
+    description: 'Cardholder full name',
+    example: 'JOHN DOE',
+  })
   @IsNotEmpty()
   @IsString()
   cardholderName: string;
 
+  @ApiProperty({
+    description: 'Card expiry date in MM/YY format',
+    example: '12/25',
+  })
   @IsNotEmpty()
   @IsString()
   expiryDate: string;
 
+  @ApiProperty({
+    description: 'Card CVV code (3 to 4 digits)',
+    example: '123',
+  })
   @IsNotEmpty()
   @IsString()
   @MinLength(3)
