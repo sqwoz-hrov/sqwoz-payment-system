@@ -1,13 +1,28 @@
-import { Controller, Post, Body, UnauthorizedException } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  UnauthorizedException,
+  Request,
+  UseGuards,
+} from '@nestjs/common';
 import { PaymentsService } from './payments.service';
 import { CreatePaymentDto } from './dto/payment.dto';
 import { CreateRefundDto, CancelRefundDto } from './dto/refund.dto';
 import { MerchantsService } from '../merchants/merchants.service';
-import { ApiBody, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiOperation,
+  ApiResponse,
+} from '@nestjs/swagger';
 import { PaymentResponseDto } from './dto/payment-response.dto';
 import { RefundResponseDto } from './dto/refund-response.dto';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @Controller('payments')
+@UseGuards(JwtAuthGuard)
+@ApiBearerAuth()
 export class PaymentsController {
   constructor(
     private readonly paymentsService: PaymentsService,
@@ -23,16 +38,17 @@ export class PaymentsController {
   })
   @ApiResponse({ status: 401, description: 'Invalid merchant credentials.' })
   @Post()
-  async createPayment(@Body() createPaymentDto: CreatePaymentDto) {
+  async createPayment(
+    @Body() createPaymentDto: CreatePaymentDto,
+    @Request() req,
+  ) {
     const merchant = await this.merchantsService.findByIdAndKey(
-      createPaymentDto.merchantId,
-      createPaymentDto.merchantKey,
+      req.user.merchantId,
+      req.user.merchantKey,
     );
-
     if (!merchant) {
       throw new UnauthorizedException('Invalid merchant credentials');
     }
-
     return this.paymentsService.create(createPaymentDto, merchant);
   }
 
@@ -45,17 +61,15 @@ export class PaymentsController {
   })
   @ApiResponse({ status: 401, description: 'Invalid merchant credentials.' })
   @Post('refund')
-  async createRefund(@Body() createRefundDto: CreateRefundDto) {
+  async createRefund(@Body() createRefundDto: CreateRefundDto, @Request() req) {
     const merchant = await this.merchantsService.findByIdAndKey(
-      createRefundDto.merchantId,
-      createRefundDto.merchantKey,
+      req.user.merchantId,
+      req.user.merchantKey,
     );
-
     if (!merchant) {
       throw new UnauthorizedException('Invalid merchant credentials');
     }
-
-    return this.paymentsService.createRefund(createRefundDto);
+    return this.paymentsService.createRefund(createRefundDto, merchant.id);
   }
 
   @ApiOperation({ summary: 'Cancel a refund request' })
@@ -67,16 +81,14 @@ export class PaymentsController {
   })
   @ApiResponse({ status: 401, description: 'Invalid merchant credentials.' })
   @Post('refund/cancel')
-  async cancelRefund(@Body() cancelRefundDto: CancelRefundDto) {
+  async cancelRefund(@Body() cancelRefundDto: CancelRefundDto, @Request() req) {
     const merchant = await this.merchantsService.findByIdAndKey(
-      cancelRefundDto.merchantId,
-      cancelRefundDto.merchantKey,
+      req.user.merchantId,
+      req.user.merchantKey,
     );
-
     if (!merchant) {
       throw new UnauthorizedException('Invalid merchant credentials');
     }
-
-    return this.paymentsService.cancelRefund(cancelRefundDto);
+    return this.paymentsService.cancelRefund(cancelRefundDto, merchant.id);
   }
 }

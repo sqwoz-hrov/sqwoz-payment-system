@@ -10,22 +10,6 @@ export class CreateRefundDto {
   @IsString()
   paymentId: string;
 
-  @ApiProperty({
-    description: 'Merchant identifier',
-    example: 'merchant_123',
-  })
-  @IsNotEmpty()
-  @IsString()
-  merchantId: string;
-
-  @ApiProperty({
-    description: 'Merchant secret key',
-    example: 'secret_key_abc',
-  })
-  @IsNotEmpty()
-  @IsString()
-  merchantKey: string;
-
   @ApiPropertyOptional({
     description: 'Amount to refund (optional, full amount if not provided)',
     example: 500,
@@ -43,20 +27,4 @@ export class CancelRefundDto {
   @IsNotEmpty()
   @IsString()
   refundId: string;
-
-  @ApiProperty({
-    description: 'Merchant identifier',
-    example: 'merchant_123',
-  })
-  @IsNotEmpty()
-  @IsString()
-  merchantId: string;
-
-  @ApiProperty({
-    description: 'Merchant secret key',
-    example: 'secret_key_abc',
-  })
-  @IsNotEmpty()
-  @IsString()
-  merchantKey: string;
 }

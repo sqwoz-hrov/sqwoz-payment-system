@@ -6,10 +6,10 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { MerchantsService } from '../merchants/merchants.service';
+import { JwtService } from '@nestjs/jwt';
 
 interface ConnectionParams {
-  merchant_id: string;
-  merchant_key: string;
+  token: string;
 }
 
 @WebSocketGateway({
@@ -22,31 +22,50 @@ export class PaymentsGateway
 {
   @WebSocketServer()
   server: Server;
-
   private merchantSockets: Map<string, Set<string>> = new Map();
 
-  constructor(private readonly merchantsService: MerchantsService) {}
+  constructor(
+    private readonly merchantsService: MerchantsService,
+    private readonly jwtService: JwtService,
+  ) {}
 
   async handleConnection(client: Socket) {
     try {
-      const params = client.handshake.query as unknown as ConnectionParams;
+      const params = client.handshake.auth as ConnectionParams;
 
-      if (!params.merchant_id || !params.merchant_key) {
+      // Check if token is provided
+      if (!params.token) {
+        client.emit('error', { message: 'Authentication token is required' });
         client.disconnect();
         return;
       }
 
+      // Verify and decode the JWT token
+      let payload;
+      try {
+        payload = this.jwtService.verify(params.token);
+      } catch (error) {
+        console.log('Token verification error:', error);
+        client.emit('error', { message: 'Invalid or expired token' });
+        client.disconnect();
+        return;
+      }
+
+      const { merchantId, merchantKey } = payload;
+
+      // Verify the merchant exists
       const merchant = await this.merchantsService.findByIdAndKey(
-        params.merchant_id,
-        params.merchant_key,
+        merchantId,
+        merchantKey,
       );
 
       if (!merchant) {
+        client.emit('error', { message: 'Invalid merchant credentials' });
         client.disconnect();
         return;
       }
 
-      // Store connection
+      // Store connection info
       client.data.merchantId = merchant.id;
 
       // Add socket to merchant's set
@@ -62,6 +81,7 @@ export class PaymentsGateway
       });
     } catch (error) {
       console.error('Error during connection:', error);
+      client.emit('error', { message: 'Internal server error' });
       client.disconnect();
     }
   }
@@ -70,7 +90,6 @@ export class PaymentsGateway
     const merchantId = client.data.merchantId;
     if (merchantId && this.merchantSockets.has(merchantId)) {
       this.merchantSockets.get(merchantId)!.delete(client.id);
-
       // Clean up if no more connections for this merchant
       if (this.merchantSockets.get(merchantId)!.size === 0) {
         this.merchantSockets.delete(merchantId);

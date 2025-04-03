@@ -9,17 +9,20 @@ import { Merchant } from '../src/merchants/entities/merchant.entity';
 import { PaymentStatus } from '../src/payments/entities/payment.entity';
 import { RefundStatus } from '../src/payments/entities/refund.entity';
 import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
 
 describe('PaymentSystem (e2e)', () => {
   let app: INestApplication;
   let merchantsRepository: Repository<Merchant>;
   let dataSource: DataSource;
   let configService: ConfigService;
+  let jwtService: JwtService;
 
   let testMerchant: Merchant;
   let socket: Socket;
   let testPaymentId: string;
   let testRefundId: string;
+  let jwtToken: string;
 
   // Configuration timeouts
   let paymentProcessingDelay: number;
@@ -40,6 +43,7 @@ describe('PaymentSystem (e2e)', () => {
     );
     dataSource = moduleFixture.get<DataSource>(DataSource);
     configService = moduleFixture.get<ConfigService>(ConfigService);
+    jwtService = moduleFixture.get<JwtService>(JwtService);
 
     // Get the configured delays from ConfigService
     paymentProcessingDelay = configService.get<number>(
@@ -58,6 +62,12 @@ describe('PaymentSystem (e2e)', () => {
       key: 'test-secret-key',
     });
     await merchantsRepository.save(testMerchant);
+
+    // Generate JWT token for the test merchant
+    jwtToken = jwtService.sign({
+      merchantId: testMerchant.id,
+      merchantKey: testMerchant.key,
+    });
   });
 
   afterAll(async () => {
@@ -65,12 +75,30 @@ describe('PaymentSystem (e2e)', () => {
     await app.close();
   });
 
+  describe('Authentication', () => {
+    it('should authenticate and get a JWT token', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/auth/login')
+        .send({
+          merchantId: testMerchant.id,
+          merchantKey: testMerchant.key,
+        })
+        .expect(200);
+
+      expect(response.body).toHaveProperty('access_token');
+      expect(response.body).toHaveProperty('merchant');
+      expect(response.body.merchant.id).toBe(testMerchant.id);
+
+      // Update the token with the one received from the auth endpoint
+      jwtToken = response.body.access_token;
+    });
+  });
+
   describe('WebSocket Connection', () => {
-    it('should connect to WebSocket with valid merchant credentials', (done) => {
+    it('should connect to WebSocket with JWT token', (done) => {
       socket = io(`http://localhost:3000`, {
-        query: {
-          merchant_id: testMerchant.id,
-          merchant_key: testMerchant.key,
+        auth: {
+          token: jwtToken,
         },
         transports: ['websocket'],
       });
@@ -97,8 +125,6 @@ describe('PaymentSystem (e2e)', () => {
   describe('Payment Processing', () => {
     it('should create a successful payment and receive success notification', async () => {
       const paymentData = {
-        merchantId: testMerchant.id,
-        merchantKey: testMerchant.key,
         amount: 100,
         cardNumber: '1111 1111 1111 1111',
         cardholderName: 'Test User',
@@ -108,6 +134,7 @@ describe('PaymentSystem (e2e)', () => {
 
       const response = await request(app.getHttpServer())
         .post('/payments')
+        .set('Authorization', `Bearer ${jwtToken}`)
         .send(paymentData)
         .expect(201);
 
@@ -144,8 +171,6 @@ describe('PaymentSystem (e2e)', () => {
 
     it('should create a failed payment due to insufficient balance and receive failure notification', async () => {
       const paymentData = {
-        merchantId: testMerchant.id,
-        merchantKey: testMerchant.key,
         amount: 100,
         cardNumber: '2222 2222 2222 2222',
         cardholderName: 'Test User',
@@ -155,6 +180,7 @@ describe('PaymentSystem (e2e)', () => {
 
       const response = await request(app.getHttpServer())
         .post('/payments')
+        .set('Authorization', `Bearer ${jwtToken}`)
         .send(paymentData)
         .expect(201);
 
@@ -192,8 +218,6 @@ describe('PaymentSystem (e2e)', () => {
 
     it('should create a failed payment due to incorrect card details and receive failure notification', async () => {
       const paymentData = {
-        merchantId: testMerchant.id,
-        merchantKey: testMerchant.key,
         amount: 100,
         cardNumber: '3333 3333 3333 3333',
         cardholderName: 'Test User',
@@ -203,6 +227,7 @@ describe('PaymentSystem (e2e)', () => {
 
       const response = await request(app.getHttpServer())
         .post('/payments')
+        .set('Authorization', `Bearer ${jwtToken}`)
         .send(paymentData)
         .expect(201);
 
@@ -240,8 +265,6 @@ describe('PaymentSystem (e2e)', () => {
 
     it('should create a failed payment due to expired card and receive failure notification', async () => {
       const paymentData = {
-        merchantId: testMerchant.id,
-        merchantKey: testMerchant.key,
         amount: 100,
         cardNumber: '4444 4444 4444 4444',
         cardholderName: 'Test User',
@@ -251,6 +274,7 @@ describe('PaymentSystem (e2e)', () => {
 
       const response = await request(app.getHttpServer())
         .post('/payments')
+        .set('Authorization', `Bearer ${jwtToken}`)
         .send(paymentData)
         .expect(201);
 
@@ -291,13 +315,12 @@ describe('PaymentSystem (e2e)', () => {
     it('should create a refund for a successful payment', async () => {
       const refundData = {
         paymentId: testPaymentId,
-        merchantId: testMerchant.id,
-        merchantKey: testMerchant.key,
         amount: 100,
       };
 
       const response = await request(app.getHttpServer())
         .post('/payments/refund')
+        .set('Authorization', `Bearer ${jwtToken}`)
         .send(refundData)
         .expect(201);
 
@@ -310,8 +333,6 @@ describe('PaymentSystem (e2e)', () => {
     it('should be able to cancel a refund and receive cancellation notification', async () => {
       const cancelData = {
         refundId: testRefundId,
-        merchantId: testMerchant.id,
-        merchantKey: testMerchant.key,
       };
 
       // Create a promise that will resolve when the websocket event is received
@@ -341,6 +362,7 @@ describe('PaymentSystem (e2e)', () => {
       // Now make the HTTP request
       const response = await request(app.getHttpServer())
         .post('/payments/refund/cancel')
+        .set('Authorization', `Bearer ${jwtToken}`)
         .send(cancelData)
         .expect(201);
 
@@ -354,13 +376,12 @@ describe('PaymentSystem (e2e)', () => {
     it('should create another refund that completes successfully and receive success notification', async () => {
       const refundData = {
         paymentId: testPaymentId,
-        merchantId: testMerchant.id,
-        merchantKey: testMerchant.key,
         amount: 50,
       };
 
       const response = await request(app.getHttpServer())
         .post('/payments/refund')
+        .set('Authorization', `Bearer ${jwtToken}`)
         .send(refundData)
         .expect(201);
 
@@ -395,10 +416,24 @@ describe('PaymentSystem (e2e)', () => {
   });
 
   describe('Error Handling', () => {
-    it('should reject payment with invalid merchant credentials', async () => {
+    it('should reject requests with invalid JWT token', async () => {
       const paymentData = {
-        merchantId: testMerchant.id,
-        merchantKey: 'wrong-key',
+        amount: 100,
+        cardNumber: '1111 1111 1111 1111',
+        cardholderName: 'Test User',
+        expiryDate: '12/25',
+        cvv: '123',
+      };
+
+      await request(app.getHttpServer())
+        .post('/payments')
+        .set('Authorization', 'Bearer invalid-token')
+        .send(paymentData)
+        .expect(401);
+    });
+
+    it('should reject requests with no JWT token', async () => {
+      const paymentData = {
         amount: 100,
         cardNumber: '1111 1111 1111 1111',
         cardholderName: 'Test User',
@@ -415,12 +450,11 @@ describe('PaymentSystem (e2e)', () => {
     it('should reject refund for non-existent payment', async () => {
       const refundData = {
         paymentId: '00000000-0000-0000-0000-000000000000',
-        merchantId: testMerchant.id,
-        merchantKey: testMerchant.key,
       };
 
       await request(app.getHttpServer())
         .post('/payments/refund')
+        .set('Authorization', `Bearer ${jwtToken}`)
         .send(refundData)
         .expect(404);
     });
@@ -428,12 +462,11 @@ describe('PaymentSystem (e2e)', () => {
     it('should reject refund cancellation for non-existent refund', async () => {
       const cancelData = {
         refundId: '00000000-0000-0000-0000-000000000000',
-        merchantId: testMerchant.id,
-        merchantKey: testMerchant.key,
       };
 
       await request(app.getHttpServer())
         .post('/payments/refund/cancel')
+        .set('Authorization', `Bearer ${jwtToken}`)
         .send(cancelData)
         .expect(404);
     });

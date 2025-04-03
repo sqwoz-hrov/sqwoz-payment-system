@@ -118,7 +118,10 @@ export class PaymentsService {
     );
   }
 
-  async createRefund(createRefundDto: CreateRefundDto): Promise<Refund> {
+  async createRefund(
+    createRefundDto: CreateRefundDto,
+    merchantId: string,
+  ): Promise<Refund> {
     const payment = await this.paymentsRepository.findOne({
       where: { id: createRefundDto.paymentId },
     });
@@ -127,7 +130,7 @@ export class PaymentsService {
       throw new NotFoundException('Payment not found');
     }
 
-    if (payment.merchantId !== createRefundDto.merchantId) {
+    if (payment.merchantId !== merchantId) {
       throw new BadRequestException('Payment does not belong to this merchant');
     }
 
@@ -196,7 +199,10 @@ export class PaymentsService {
     );
   }
 
-  async cancelRefund(cancelRefundDto: CancelRefundDto): Promise<Refund> {
+  async cancelRefund(
+    cancelRefundDto: CancelRefundDto,
+    merchantId: string,
+  ): Promise<Refund> {
     const refund = await this.refundsRepository.findOne({
       where: { id: cancelRefundDto.refundId },
       relations: ['payment'],
@@ -206,7 +212,7 @@ export class PaymentsService {
       throw new NotFoundException('Refund not found');
     }
 
-    if (refund.payment.merchantId !== cancelRefundDto.merchantId) {
+    if (refund.payment.merchantId !== merchantId) {
       throw new BadRequestException('Refund does not belong to this merchant');
     }
 

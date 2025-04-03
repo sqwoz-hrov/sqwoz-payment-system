@@ -4,6 +4,7 @@ import { PaymentsModule } from './payments/payments.module';
 import { MerchantsModule } from './merchants/merchants.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AsyncApiModule } from './asyncapi/asyncapi.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { AsyncApiModule } from './asyncapi/asyncapi.module';
     }),
     PaymentsModule,
     MerchantsModule,
+    AuthModule,
     AsyncApiModule,
   ],
 })

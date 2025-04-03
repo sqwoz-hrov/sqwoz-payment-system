@@ -9,22 +9,6 @@ import {
 
 export class CreatePaymentDto {
   @ApiProperty({
-    description: 'Merchant identifier',
-    example: 'merchant_123',
-  })
-  @IsNotEmpty()
-  @IsString()
-  merchantId: string;
-
-  @ApiProperty({
-    description: 'Merchant secret key',
-    example: 'secret_key_abc',
-  })
-  @IsNotEmpty()
-  @IsString()
-  merchantKey: string;
-
-  @ApiProperty({
     description: 'Payment amount',
     example: 1000,
   })
