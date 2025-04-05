@@ -26,8 +26,10 @@ WORKDIR /app
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
+ENV NODE_ENV=production
+ENV TZ=UTC
 
 EXPOSE $APP_PORT
 
 # Start the application
-CMD ["NODE_ENV=production node", "dist/main"]
+CMD ["node", "dist/main"]

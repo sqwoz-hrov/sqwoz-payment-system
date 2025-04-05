@@ -26,13 +26,15 @@ services:
       - .env
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.fake-pay.rule=Host(`sqwoz-hrov.ru`) && PathPrefix(`/payments`)"
+      - "traefik.http.routers.fake-pay.rule=Host(`stage.sqwoz-hrov.ru`) && PathPrefix(`/payments`)"
       - "traefik.http.routers.fake-pay.entrypoints=websecure"
       - "traefik.http.routers.fake-pay.tls=true"
       - "traefik.http.routers.fake-pay.tls.certresolver=myresolver"
       - "traefik.http.services.fake-pay.loadbalancer.server.port=${PORT}"
       - "traefik.http.middlewares.fake-pay-stripprefix.stripprefix.prefixes=/payments"
       - "traefik.http.routers.fake-pay.middlewares=fake-pay-stripprefix@docker"
+    expose:
+      - "${PORT}:${PORT}"
     depends_on:
       - postgres
     networks:

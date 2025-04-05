@@ -15,7 +15,8 @@ if (!fs.existsSync(outputDir)) {
 
 // Parameters passed to the template
 const templateParams = [
-  '-p singleFile=true'
+  '-p singleFile=true',
+  '-p baseHref=/payments'
 ];
 
 // Construct the CLI command using the new generator
