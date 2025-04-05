@@ -1,13 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString } from 'class-validator';
+import { IsNotEmpty, IsString, IsUUID } from 'class-validator';
 
 export class MerchantAuthDto {
   @ApiProperty({
     description: 'The unique ID of the merchant',
     example: 'merch_123456',
   })
-  @IsNotEmpty()
-  @IsString()
+  @IsUUID()
   merchantId: string;
 
   @ApiProperty({
