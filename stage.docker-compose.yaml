@@ -45,6 +45,8 @@ services:
     networks:
       - traefik
       - fakepay-db
+    volumes:
+      - ./public:/app/public
 
 volumes:
   fakepay_db_data:
