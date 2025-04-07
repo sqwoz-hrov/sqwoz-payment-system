@@ -8,9 +8,13 @@ info:
   
 servers:
   production:
-    url: wss://api.example.com/payments
+    url: wss://sqwoz-hrov.ru/payments/ws
     protocol: wss
     description: Production server
+  stage:
+    url: wss://stage.sqwoz-hrov.ru/payments/ws
+    protocol: wss
+    description: Staging server
   
 channels:
   /merchant/{merchantId}:
