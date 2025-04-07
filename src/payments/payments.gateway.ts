@@ -16,6 +16,8 @@ interface ConnectionParams {
   cors: {
     origin: '*',
   },
+  path: '/payments/ws',
+  port: process.env.WS_PORT,
 })
 export class PaymentsGateway
   implements OnGatewayConnection, OnGatewayDisconnect

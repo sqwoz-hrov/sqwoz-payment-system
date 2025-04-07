@@ -30,6 +30,7 @@ ENV NODE_ENV=production
 ENV TZ=UTC
 
 EXPOSE $APP_PORT
+EXPOSE $WS_PORT
 
 # Start the application
 CMD ["node", "dist/main"]

@@ -8,7 +8,7 @@ services:
     env_file:
       - .env
     expose:
-      - "${POSTGRES_PORT}:${DB_PORT}"
+      - '${POSTGRES_PORT}:${DB_PORT}'
     volumes:
       - fakepay_db_data:/var/lib/postgresql/data
     networks:
@@ -20,19 +20,26 @@ services:
       dockerfile: Dockerfile
       args:
         - APP_PORT=$PORT
+        - WS_PORT=$WS_PORT
     container_name: fakepay-api
     restart: always
     env_file:
       - .env
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.fake-pay.rule=Host(`sqwoz-hrov.ru`) && PathPrefix(`/payments`)"
-      - "traefik.http.routers.fake-pay.entrypoints=websecure"
-      - "traefik.http.routers.fake-pay.tls=true"
-      - "traefik.http.routers.fake-pay.tls.certresolver=myresolver"
-      - "traefik.http.services.fake-pay.loadbalancer.server.port=${PORT}"
-      - "traefik.http.middlewares.fake-pay-stripprefix.stripprefix.prefixes=/payments"
-      - "traefik.http.routers.fake-pay.middlewares=fake-pay-stripprefix@docker"
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.fake-pay.rule=Host(`sqwoz-hrov.ru`) && PathPrefix(`/payments`)'
+      - 'traefik.http.routers.fake-pay.entrypoints=websecure'
+      - 'traefik.http.routers.fake-pay.tls=true'
+      - 'traefik.http.routers.fake-pay.tls.certresolver=myresolver'
+      - 'traefik.http.services.fake-pay.loadbalancer.server.port=${PORT}'
+      - 'traefik.http.middlewares.fake-pay-stripprefix.stripprefix.prefixes=/payments'
+      - 'traefik.http.routers.fake-pay.middlewares=fake-pay-stripprefix@docker'
+      - 'traefik.http.routers.wss.rule=Host(`sqwoz-hrov.ru`) && PathPrefix(`/payments/ws`)'
+      - 'traefik.tcp.services.wss.loadbalancer.server.port=${WS_PORT}'
+      - 'traefik.http.routers.wss.entrypoints=websecure'
+    expose:
+      - '${PORT}:${PORT}'
+      - '${WS_PORT}:${WS_PORT}'
     depends_on:
       - postgres
     networks:
