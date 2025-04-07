@@ -24,10 +24,6 @@ export const buildSwaggerDocs = (
     .setDescription('API documentation for the Skvoz Payment System')
     .addServer(serverUrl, serverDescription)
     .addBearerAuth()
-    .addSecurity('basic', {
-      type: 'http',
-      scheme: 'basic',
-    })
     .setVersion('0.0.2')
     .addTag('Payments')
     .build();
