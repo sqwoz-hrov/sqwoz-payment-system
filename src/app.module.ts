@@ -2,27 +2,29 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { PaymentsModule } from './payments/payments.module';
 import { MerchantsModule } from './merchants/merchants.module';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ConfigModule, ConfigType } from '@nestjs/config';
 import { AsyncApiModule } from './asyncapi/asyncapi.module';
 import { AuthModule } from './auth/auth.module';
+import { appConfig } from './config/app.config';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      load: [appConfig],
     }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
+      inject: [appConfig.KEY],
+      useFactory: (config: ConfigType<typeof appConfig>) => ({
         type: 'postgres',
-        host: configService.getOrThrow('DB_HOST', 'localhost'),
-        port: configService.getOrThrow<number>('DB_PORT', 5432),
-        username: configService.getOrThrow('DB_USERNAME', 'postgres'),
-        password: configService.getOrThrow('DB_PASSWORD', 'postgres'),
-        database: configService.getOrThrow('DB_DATABASE', 'payment_system'),
+        host: config.DB_HOST,
+        port: config.DB_PORT,
+        username: config.DB_USERNAME,
+        password: config.DB_PASSWORD,
+        database: config.DB_DATABASE,
         entities: [__dirname + '/**/*.entity{.ts,.js}'],
-        synchronize: configService.get<boolean>('DB_SYNC', false), // Should be false in production
+        synchronize: config.DB_SYNC, // Should be false in production
       }),
     }),
     PaymentsModule,

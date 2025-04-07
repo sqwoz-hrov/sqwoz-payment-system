@@ -1,23 +1,23 @@
 import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { SwaggerModule } from '@nestjs/swagger';
+import { ConfigService } from '@nestjs/config';
+
+import { APP_CONFIG_KEY } from './config/app.config';
+import { buildSwaggerDocs } from './swagger';
+import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.useGlobalPipes(new ValidationPipe());
 
-  const config = new DocumentBuilder()
-    .setTitle('Skvoz Payment System')
-    .setDescription('API documentation for the Skvoz Payment System')
-    .setVersion('1.0')
-    .addTag('Payments')
-    .build();
-
-  const document = SwaggerModule.createDocument(app, config);
+  const document = buildSwaggerDocs(app, app.get(ConfigService));
   SwaggerModule.setup('api/docs', app, document);
 
-  await app.listen(process.env.PORT || 3000);
-  console.log('Application is running on: http://localhost:3000');
+  const PORT = app
+    .get(ConfigService)
+    .getOrThrow<number>(`${APP_CONFIG_KEY}.PORT`);
+  await app.listen(PORT);
+  console.log(`Application is running on: http://localhost:${PORT}`);
 }
 bootstrap();
