@@ -4,8 +4,9 @@ import {
   OnGatewayConnection,
   OnGatewayDisconnect,
 } from '@nestjs/websockets';
-import { Server, Socket } from 'socket.io';
 import { MerchantsService } from '../merchants/merchants.service';
+import { Server } from 'ws';
+import * as WebSocket from 'ws';
 import { JwtService } from '@nestjs/jwt';
 
 interface ConnectionParams {
@@ -31,14 +32,14 @@ export class PaymentsGateway
     private readonly jwtService: JwtService,
   ) {}
 
-  async handleConnection(client: Socket) {
+  async handleConnection(client: WebSocket) {
     try {
       const params = client.handshake.auth as ConnectionParams;
 
       // Check if token is provided
       if (!params.token) {
         client.emit('error', { message: 'Authentication token is required' });
-        client.disconnect();
+        client.close();
         return;
       }
 
@@ -49,7 +50,7 @@ export class PaymentsGateway
       } catch (error) {
         console.log('Token verification error:', error);
         client.emit('error', { message: 'Invalid or expired token' });
-        client.disconnect();
+        client.close();
         return;
       }
 
@@ -63,7 +64,7 @@ export class PaymentsGateway
 
       if (!merchant) {
         client.emit('error', { message: 'Invalid merchant credentials' });
-        client.disconnect();
+        client.close();
         return;
       }
 
