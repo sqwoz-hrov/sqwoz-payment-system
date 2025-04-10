@@ -20,7 +20,7 @@ interface WebSocketClient extends WebSocket {
 }
 
 @WebSocketGateway({
-  path: '/payments/ws',
+  path: '/ws',
   cors: {
     origin: '*',
   },
