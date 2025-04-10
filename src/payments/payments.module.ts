@@ -3,13 +3,13 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { PaymentsController } from './payments.controller';
 import { PaymentsService } from './payments.service';
-import { PaymentsGateway } from './payments.gateway';
 import { Payment } from './entities/payment.entity';
 import { Refund } from './entities/refund.entity';
 import { MerchantsModule } from '../merchants/merchants.module';
 import paymentsConfig from './payments.config';
 import { PassportModule } from '@nestjs/passport';
 import { JwtModule } from '@nestjs/jwt';
+import { WebSocketModule } from '../websocket/websocket.module';
 
 @Module({
   imports: [
@@ -27,8 +27,9 @@ import { JwtModule } from '@nestjs/jwt';
       }),
     }),
     MerchantsModule,
+    WebSocketModule,
   ],
   controllers: [PaymentsController],
-  providers: [PaymentsService, PaymentsGateway],
+  providers: [PaymentsService],
 })
 export class PaymentsModule {}

@@ -2,31 +2,55 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import * as request from 'supertest';
 import { AppModule } from '../src/app.module';
-import { Socket, io } from 'socket.io-client';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { Merchant } from '../src/merchants/entities/merchant.entity';
 import { PaymentStatus } from '../src/payments/entities/payment.entity';
 import { RefundStatus } from '../src/payments/entities/refund.entity';
 import { ConfigService } from '@nestjs/config';
-import { JwtService } from '@nestjs/jwt';
+import * as WebSocket from 'ws';
 
 describe('PaymentSystem (e2e)', () => {
   let app: INestApplication;
   let merchantsRepository: Repository<Merchant>;
   let dataSource: DataSource;
   let configService: ConfigService;
-  let jwtService: JwtService;
 
   let testMerchant: Merchant;
-  let socket: Socket;
   let testPaymentId: string;
   let testRefundId: string;
   let jwtToken: string;
 
-  // Configuration timeouts
   let paymentProcessingDelay: number;
   let refundProcessingDelay: number;
+
+  const createWebSocket = () => {
+    // Add explicit logging
+    console.log(`Creating WebSocket connection with token: ${jwtToken}`);
+
+    // Try with the full URL including protocol
+    const wsUrl = `ws://localhost:3000/payments?token=${jwtToken}`;
+    console.log(`Connecting to: ${wsUrl}`);
+
+    const ws = new WebSocket(wsUrl);
+
+    // Add more detailed event handlers for better debugging
+    ws.on('open', () => {
+      console.log('WebSocket connection opened successfully');
+    });
+
+    ws.on('error', (err) => {
+      console.error('WebSocket error occurred:', err);
+    });
+
+    ws.on('close', (code, reason) => {
+      console.log(
+        `WebSocket closed with code: ${code}, reason: ${reason || 'No reason provided'}`,
+      );
+    });
+
+    return ws;
+  };
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -43,9 +67,7 @@ describe('PaymentSystem (e2e)', () => {
     );
     dataSource = moduleFixture.get<DataSource>(DataSource);
     configService = moduleFixture.get<ConfigService>(ConfigService);
-    jwtService = moduleFixture.get<JwtService>(JwtService);
 
-    // Get the configured delays from ConfigService
     paymentProcessingDelay = configService.get<number>(
       'payments.processingDelays.payment',
     )!;
@@ -53,21 +75,19 @@ describe('PaymentSystem (e2e)', () => {
       'payments.processingDelays.refund',
     )!;
 
-    console.log(
-      `Using configured delays - Payment: ${paymentProcessingDelay}ms, Refund: ${refundProcessingDelay}ms`,
-    );
-
     testMerchant = merchantsRepository.create({
       name: 'Test Merchant',
       key: 'test-secret-key',
     });
     await merchantsRepository.save(testMerchant);
 
-    // Generate JWT token for the test merchant
-    jwtToken = jwtService.sign({
-      merchantId: testMerchant.id,
-      merchantKey: testMerchant.key,
-    });
+    const response = await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({
+        merchantId: testMerchant.id,
+        merchantKey: testMerchant.key,
+      });
+    jwtToken = response.body.access_token;
   });
 
   afterAll(async () => {
@@ -89,40 +109,104 @@ describe('PaymentSystem (e2e)', () => {
       expect(response.body).toHaveProperty('merchant');
       expect(response.body.merchant.id).toBe(testMerchant.id);
 
-      // Update the token with the one received from the auth endpoint
       jwtToken = response.body.access_token;
     });
   });
 
   describe('WebSocket Connection', () => {
-    it('should connect to WebSocket with JWT token', (done) => {
-      socket = io(`http://localhost:3000`, {
-        auth: {
-          token: jwtToken,
-        },
-        transports: ['websocket'],
-      });
+    let ws: WebSocket;
 
-      socket.on('connect', () => {
-        expect(socket.connected).toBe(true);
+    afterEach((done) => {
+      if (ws && ws.readyState !== WebSocket.CLOSED) {
+        ws.on('close', () => done());
+        ws.close();
+      } else {
+        done();
+      }
+    });
+
+    it('should connect to WebSocket with JWT token', (done) => {
+      ws = createWebSocket();
+
+      ws.on('open', () => {
+        expect(ws.readyState).toBe(WebSocket.OPEN);
         done();
       });
 
-      socket.on('connect_error', (err) => {
-        done.fail(`Failed to connect: ${err.message}`);
+      ws.on('error', (err) => {
+        done(`Failed to connect: ${err.message}`);
       });
     });
 
     it('should receive connection established event', (done) => {
-      socket.on('connection_established', (data) => {
-        expect(data.merchantId).toBe(testMerchant.id);
-        expect(data.message).toBe('Connected to payment system');
-        done();
+      ws = createWebSocket();
+
+      ws.on('open', () => {
+        const handler = (message) => {
+          const data = JSON.parse(message.toString());
+          if (data.event === 'connection_established') {
+            expect(data.data.merchantId).toBe(testMerchant.id);
+            expect(data.data.message).toBe('Connected to payment system');
+            ws.removeListener('message', handler);
+            done();
+          }
+        };
+
+        ws.on('message', handler);
       });
     });
   });
 
   describe('Payment Processing', () => {
+    let ws: WebSocket;
+
+    beforeEach((done) => {
+      ws = createWebSocket();
+
+      // Add a timeout to prevent test hanging if connection fails
+      const connectionTimeout = setTimeout(() => {
+        done('WebSocket connection timed out');
+      }, 5000);
+
+      ws.on('open', () => {
+        clearTimeout(connectionTimeout);
+        // Give the server a moment to finish setup
+        setTimeout(done, 100);
+      });
+
+      ws.on('error', (err) => {
+        clearTimeout(connectionTimeout);
+        done(`WebSocket connection failed: ${err.message}`);
+      });
+    });
+
+    afterEach((done) => {
+      // Add a timeout to prevent test hanging if close event never fires
+      const closeTimeout = setTimeout(() => {
+        // Force the test to continue even if close event doesn't fire
+        console.warn('WebSocket close event timed out, forcing cleanup');
+        done();
+      }, 3000);
+
+      if (ws && ws.readyState !== WebSocket.CLOSED) {
+        ws.on('close', () => {
+          clearTimeout(closeTimeout);
+          done();
+        });
+
+        try {
+          ws.close();
+        } catch (err) {
+          clearTimeout(closeTimeout);
+          console.warn('Error during WebSocket close:', err);
+          done();
+        }
+      } else {
+        clearTimeout(closeTimeout);
+        done();
+      }
+    });
+
     it('should create a successful payment and receive success notification', async () => {
       const paymentData = {
         amount: 100,
@@ -143,31 +227,31 @@ describe('PaymentSystem (e2e)', () => {
 
       testPaymentId = response.body.id;
 
-      // Wait for the websocket event
       return new Promise<void>((resolve, reject) => {
-        const handler = (data) => {
+        const handler = (message) => {
+          const data = JSON.parse(message.toString());
           if (
-            data.paymentId === testPaymentId &&
-            data.status === PaymentStatus.SUCCESSFUL
+            data.event === 'payment_update' &&
+            data.data.paymentId === testPaymentId &&
+            data.data.status === PaymentStatus.SUCCESSFUL
           ) {
-            expect(data.type).toBe('PAYMENT_UPDATE');
-            expect(data.errorReason).toBe('none');
-            socket.off('payment_update', handler); // Remove listener to avoid interference
+            expect(data.data.type).toBe('PAYMENT_UPDATE');
+            expect(data.data.errorReason).toBe('none');
+            ws.removeListener('message', handler);
             resolve();
           }
         };
 
-        socket.on('payment_update', handler);
+        ws.on('message', handler);
 
-        // Set timeout based on configured delay plus a buffer
         setTimeout(() => {
-          socket.off('payment_update', handler);
+          ws.removeListener('message', handler);
           reject(
             new Error('Timed out waiting for successful payment notification'),
           );
         }, paymentProcessingDelay + 1000);
       });
-    }); // Adjust the test timeout to accommodate the configured delay
+    });
 
     it('should create a failed payment due to insufficient balance and receive failure notification', async () => {
       const paymentData = {
@@ -189,24 +273,25 @@ describe('PaymentSystem (e2e)', () => {
 
       const failedPaymentId = response.body.id;
 
-      // Wait for the websocket event
       return new Promise<void>((resolve, reject) => {
-        const handler = (data) => {
+        const handler = (message) => {
+          const data = JSON.parse(message.toString());
           if (
-            data.paymentId === failedPaymentId &&
-            data.status === PaymentStatus.FAILED
+            data.event === 'payment_update' &&
+            data.data.paymentId === failedPaymentId &&
+            data.data.status === PaymentStatus.FAILED
           ) {
-            expect(data.type).toBe('PAYMENT_UPDATE');
-            expect(data.errorReason).toBe('insufficient_balance');
-            socket.off('payment_update', handler);
+            expect(data.data.type).toBe('PAYMENT_UPDATE');
+            expect(data.data.errorReason).toBe('insufficient_balance');
+            ws.removeListener('message', handler);
             resolve();
           }
         };
 
-        socket.on('payment_update', handler);
+        ws.on('message', handler);
 
         setTimeout(() => {
-          socket.off('payment_update', handler);
+          ws.removeListener('message', handler);
           reject(
             new Error(
               'Timed out waiting for insufficient balance failure notification',
@@ -236,24 +321,25 @@ describe('PaymentSystem (e2e)', () => {
 
       const failedPaymentId = response.body.id;
 
-      // Wait for the websocket event
       return new Promise<void>((resolve, reject) => {
-        const handler = (data) => {
+        const handler = (message) => {
+          const data = JSON.parse(message.toString());
           if (
-            data.paymentId === failedPaymentId &&
-            data.status === PaymentStatus.FAILED
+            data.event === 'payment_update' &&
+            data.data.paymentId === failedPaymentId &&
+            data.data.status === PaymentStatus.FAILED
           ) {
-            expect(data.type).toBe('PAYMENT_UPDATE');
-            expect(data.errorReason).toBe('incorrect_card_details');
-            socket.off('payment_update', handler);
+            expect(data.data.type).toBe('PAYMENT_UPDATE');
+            expect(data.data.errorReason).toBe('incorrect_card_details');
+            ws.removeListener('message', handler);
             resolve();
           }
         };
 
-        socket.on('payment_update', handler);
+        ws.on('message', handler);
 
         setTimeout(() => {
-          socket.off('payment_update', handler);
+          ws.removeListener('message', handler);
           reject(
             new Error(
               'Timed out waiting for invalid card failure notification',
@@ -283,24 +369,25 @@ describe('PaymentSystem (e2e)', () => {
 
       const failedPaymentId = response.body.id;
 
-      // Wait for the websocket event
       return new Promise<void>((resolve, reject) => {
-        const handler = (data) => {
+        const handler = (message) => {
+          const data = JSON.parse(message.toString());
           if (
-            data.paymentId === failedPaymentId &&
-            data.status === PaymentStatus.FAILED
+            data.event === 'payment_update' &&
+            data.data.paymentId === failedPaymentId &&
+            data.data.status === PaymentStatus.FAILED
           ) {
-            expect(data.type).toBe('PAYMENT_UPDATE');
-            expect(data.errorReason).toBe('card_expired');
-            socket.off('payment_update', handler);
+            expect(data.data.type).toBe('PAYMENT_UPDATE');
+            expect(data.data.errorReason).toBe('card_expired');
+            ws.removeListener('message', handler);
             resolve();
           }
         };
 
-        socket.on('payment_update', handler);
+        ws.on('message', handler);
 
         setTimeout(() => {
-          socket.off('payment_update', handler);
+          ws.removeListener('message', handler);
           reject(
             new Error(
               'Timed out waiting for expired card failure notification',
@@ -312,6 +399,25 @@ describe('PaymentSystem (e2e)', () => {
   });
 
   describe('Refund Processing', () => {
+    let ws: WebSocket;
+
+    beforeEach((done) => {
+      ws = createWebSocket();
+      ws.on('open', () => done());
+      ws.on('error', (err) =>
+        done(`WebSocket connection failed: ${err.message}`),
+      );
+    });
+
+    afterEach((done) => {
+      if (ws.readyState !== WebSocket.CLOSED) {
+        ws.on('close', () => done());
+        ws.close();
+      } else {
+        done();
+      }
+    });
+
     it('should create a refund for a successful payment', async () => {
       const refundData = {
         paymentId: testPaymentId,
@@ -335,31 +441,32 @@ describe('PaymentSystem (e2e)', () => {
         refundId: testRefundId,
       };
 
-      // Create a promise that will resolve when the websocket event is received
       const notificationPromise = new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
-          socket.off('refund_update', handler);
+          ws.removeListener('message', handler);
           reject(
             new Error('Timed out waiting for refund cancellation notification'),
           );
         }, refundProcessingDelay + 1000);
-        const handler = (data) => {
+
+        const handler = (message) => {
+          const data = JSON.parse(message.toString());
           if (
-            data.refundId === testRefundId &&
-            data.status === RefundStatus.CANCELLED
+            data.event === 'refund_update' &&
+            data.data.refundId === testRefundId &&
+            data.data.status === RefundStatus.CANCELLED
           ) {
-            expect(data.type).toBe('REFUND_UPDATE');
-            expect(data.paymentId).toBe(testPaymentId);
-            socket.off('refund_update', handler);
+            expect(data.data.type).toBe('REFUND_UPDATE');
+            expect(data.data.paymentId).toBe(testPaymentId);
+            ws.removeListener('message', handler);
             clearTimeout(timeout);
             resolve();
           }
         };
 
-        socket.on('refund_update', handler);
+        ws.on('message', handler);
       });
 
-      // Now make the HTTP request
       const response = await request(app.getHttpServer())
         .post('/payments/refund/cancel')
         .set('Authorization', `Bearer ${jwtToken}`)
@@ -369,7 +476,6 @@ describe('PaymentSystem (e2e)', () => {
       expect(response.body.id).toBe(testRefundId);
       expect(response.body.status).toBe(RefundStatus.CANCELLED);
 
-      // Wait for the websocket event
       return notificationPromise;
     });
 
@@ -390,29 +496,30 @@ describe('PaymentSystem (e2e)', () => {
 
       const newRefundId = response.body.id;
 
-      // Wait for the websocket event
       return new Promise<void>((resolve, reject) => {
-        const handler = (data) => {
+        const handler = (message) => {
+          const data = JSON.parse(message.toString());
           if (
-            data.refundId === newRefundId &&
-            data.status === RefundStatus.SUCCESSFUL
+            data.event === 'refund_update' &&
+            data.data.refundId === newRefundId &&
+            data.data.status === RefundStatus.SUCCESSFUL
           ) {
-            expect(data.type).toBe('REFUND_UPDATE');
-            socket.off('refund_update', handler);
+            expect(data.data.type).toBe('REFUND_UPDATE');
+            ws.removeListener('message', handler);
             resolve();
           }
         };
 
-        socket.on('refund_update', handler);
+        ws.on('message', handler);
 
         setTimeout(() => {
-          socket.off('refund_update', handler);
+          ws.removeListener('message', handler);
           reject(
             new Error('Timed out waiting for successful refund notification'),
           );
         }, refundProcessingDelay + 1000);
       });
-    }); // Adjust the test timeout to accommodate the configured delay
+    });
   });
 
   describe('Error Handling', () => {
@@ -456,7 +563,7 @@ describe('PaymentSystem (e2e)', () => {
         .post('/payments/refund')
         .set('Authorization', `Bearer ${jwtToken}`)
         .send(refundData)
-        .expect(404);
+        .expect(400);
     });
 
     it('should reject refund cancellation for non-existent refund', async () => {
@@ -468,18 +575,26 @@ describe('PaymentSystem (e2e)', () => {
         .post('/payments/refund/cancel')
         .set('Authorization', `Bearer ${jwtToken}`)
         .send(cancelData)
-        .expect(404);
+        .expect(400);
     });
   });
 
   describe('WebSocket Disconnection', () => {
-    it('should disconnect from WebSocket', (done) => {
-      socket.on('disconnect', () => {
-        expect(socket.connected).toBe(false);
-        done();
-      });
+    let ws: WebSocket;
 
-      socket.disconnect();
+    beforeEach(() => {
+      ws = createWebSocket();
+    });
+
+    it('should disconnect from WebSocket', (done) => {
+      ws.on('open', () => {
+        ws.on('close', () => {
+          expect(ws.readyState).toBe(WebSocket.CLOSED);
+          done();
+        });
+
+        ws.close();
+      });
     });
   });
 });

@@ -15,7 +15,7 @@ import { Refund, RefundStatus } from './entities/refund.entity';
 import { CreatePaymentDto } from './dto/payment.dto';
 import { CreateRefundDto, CancelRefundDto } from './dto/refund.dto';
 import { Merchant } from '../merchants/entities/merchant.entity';
-import { PaymentsGateway } from './payments.gateway';
+import { WebsocketGateway } from '../websocket/websocket.gateway';
 
 enum WebsocketEventName {
   PAYMENT_UPDATE = 'payment_update',
@@ -32,7 +32,7 @@ export class PaymentsService {
     private paymentsRepository: Repository<Payment>,
     @InjectRepository(Refund)
     private refundsRepository: Repository<Refund>,
-    private paymentsGateway: PaymentsGateway,
+    private paymentsGateway: WebsocketGateway,
     private configService: ConfigService,
   ) {
     this.paymentProcessingDelay = this.configService.get<number>(

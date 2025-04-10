@@ -2,6 +2,11 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { MerchantsService } from '../merchants/merchants.service';
 
+type TokenPayload = {
+  merchantId: string;
+  merchantKey: string;
+  name: string;
+};
 @Injectable()
 export class AuthService {
   constructor(
@@ -41,5 +46,15 @@ export class AuthService {
         name: merchant.name,
       },
     };
+  }
+
+  validateToken(token: string) {
+    try {
+      const payload: TokenPayload = this.jwtService.verify(token);
+      return payload;
+    } catch (error: any) {
+      console.log('Token validation error:', error.message);
+      throw new UnauthorizedException('Invalid or expired token');
+    }
   }
 }
