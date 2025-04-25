@@ -18,6 +18,11 @@ servers:
   
 channels:
   /merchant/{merchantId}:
+    bindings:
+      ws:
+        method: GET
+        query:
+          $ref: '#/components/x-things/connectionParams'
     parameters:
       merchantId:
         description: The unique identifier of the merchant
@@ -36,6 +41,16 @@ channels:
           - $ref: '#/components/messages/refundUpdate'
 
 components:
+  x-things:
+    connectionParams:
+      type: object
+      properties:
+        token:
+          type: string
+          description: |
+            JWT token taken from POST /auth/login
+      required:
+        - token
   messages:
     paymentUpdate:
       name: paymentUpdate

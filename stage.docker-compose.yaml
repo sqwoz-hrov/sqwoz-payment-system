@@ -27,7 +27,6 @@ services:
       - '${WS_PORT}:${WS_PORT}'
     networks:
       - traefik
-      - fakepay-db
     volumes:
       - ./public:/app/public
     extra_hosts:
