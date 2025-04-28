@@ -18,7 +18,9 @@ WORKDIR /app
 
 COPY package*.json ./
 
-RUN npm ci --only=production
+ENV NODE_ENV=production
+
+RUN npm ci --omit=dev
 
 COPY --from=builder /app/dist ./dist
 
@@ -26,7 +28,5 @@ COPY --from=builder /app/.env ./.env
 
 EXPOSE $APP_PORT
 EXPOSE $WS_PORT
-
-ENV NODE_ENV=production
 
 CMD ["node", "dist/main"]
