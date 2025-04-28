@@ -1,36 +1,32 @@
-### Stage 1: Builder
-FROM node:22 AS builder
+# Builder stage
+FROM node:22-alpine AS builder
 
-# Set working directory
 WORKDIR /app
 
-# Copy package.json and package-lock.json
 COPY package*.json ./
 
-# Install dependencies
-RUN npm install 
+RUN npm ci
 
-# Copy the rest of the application
 COPY . .
 
-# Build the application
 RUN npm run build
 
-### Stage 2: Runner
+# Runner stage
 FROM node:22-alpine AS runner
 
-# Set working directory
 WORKDIR /app
 
-# Copy necessary files from builder stage
-COPY --from=builder /app/package*.json ./
+COPY package*.json ./
+
+RUN npm ci --only=production
+
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules ./node_modules
-ENV NODE_ENV=production
-ENV TZ=UTC
+
+COPY --from=builder /app/.env ./.env
 
 EXPOSE $APP_PORT
 EXPOSE $WS_PORT
 
-# Start the application
+ENV NODE_ENV=production
+
 CMD ["node", "dist/main"]
