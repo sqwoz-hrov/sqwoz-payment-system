@@ -24,8 +24,6 @@ RUN npm ci --omit=dev
 
 COPY --from=builder /app/dist ./dist
 
-COPY --from=builder /app/.env ./.env
-
 EXPOSE $APP_PORT
 EXPOSE $WS_PORT
 
