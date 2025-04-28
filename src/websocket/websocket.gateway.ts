@@ -75,23 +75,18 @@ export class WebsocketGateway
   async handleConnection(client: WebSocket, request: IncomingMessage) {
     try {
       console.log('New client connected:', request.url);
-      // Cast to our extended type
       const wsClient = client as WebSocketClient;
 
-      // Set initial client properties
       wsClient.id = this.generateUniqueId();
       wsClient.isAlive = true;
       wsClient.data = {};
 
-      // Add to clients map
       this.clients.set(wsClient.id, wsClient);
 
-      // Parse query parameters to get token
       const queryParams = url.parse(request.url || '', true).query;
       const token = queryParams.token as string;
 
       console.log('Token received:', token);
-      // Check if token is provided
       if (!token) {
         this.sendMessage(wsClient, 'error', {
           message: 'Authentication token is required',
@@ -100,11 +95,17 @@ export class WebsocketGateway
         return;
       }
 
-      const payload = this.authService.validateToken(token);
+      const { ok, payload, error } = this.authService.validateToken(token);
+      if (!ok) {
+        this.sendMessage(wsClient, 'error', {
+          message: error,
+        });
+        wsClient.terminate();
+        return;
+      }
 
       const { merchantId, merchantKey } = payload;
 
-      // Verify the merchant exists
       const merchant = await this.merchantsService.findByIdAndKey(
         merchantId,
         merchantKey,
@@ -120,21 +121,17 @@ export class WebsocketGateway
       }
 
       console.log('Merchant authenticated:', merchant);
-      // Store connection info
       wsClient.data.merchantId = merchant.id;
 
-      // Add socket to merchant's set
       if (!this.merchantSockets.has(merchant.id)) {
         this.merchantSockets.set(merchant.id, new Set());
       }
       this.merchantSockets.get(merchant.id)!.add(wsClient.id);
 
-      // Set up message handling
       wsClient.on('message', (message: string) => {
         this.handleMessage(wsClient, message);
       });
 
-      // Send confirmation
       this.sendMessage(wsClient, 'connection_established', {
         message: 'Connected to payment system',
         merchantId: merchant.id,

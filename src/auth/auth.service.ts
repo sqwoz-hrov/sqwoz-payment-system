@@ -48,13 +48,17 @@ export class AuthService {
     };
   }
 
-  validateToken(token: string) {
+  validateToken(
+    token: string,
+  ):
+    | { ok: true; payload: TokenPayload; error: undefined }
+    | { ok: false; payload: undefined; error: string } {
     try {
       const payload: TokenPayload = this.jwtService.verify(token);
-      return payload;
+      return { ok: true, payload, error: undefined };
     } catch (error: any) {
       console.log('Token validation error:', error.message);
-      throw new UnauthorizedException('Invalid or expired token');
+      return { ok: false, payload: undefined, error: error.message };
     }
   }
 }
